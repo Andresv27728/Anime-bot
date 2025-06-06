@@ -76,7 +76,7 @@ let handler = async (m, { conn, usedPrefix, command }) => {
         }
 
         // Verificar si el usuario tiene suficiente dinero
-        const costo = 200
+        const costo = 2
         if (user.money < costo) {
             return m.reply(`❌ No tienes suficiente dinero para generar una cuenta.\n\n💰 *Costo:* ${costo.toLocaleString()} monedas\n💳 *Tu dinero:* ${user.money.toLocaleString()} monedas\n\n¡Necesitas ${(costo - user.money).toLocaleString()} monedas más!`)
         }
