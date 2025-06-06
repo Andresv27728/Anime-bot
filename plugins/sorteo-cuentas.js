@@ -20,6 +20,8 @@ let handler = async (m, { conn, usedPrefix, command, args, isOwner }) => {
 
 *Ejemplo:* ${usedPrefix}sorteo 5
 
+💰 *Costo:* 2,000,000 monedas por uso
+
 Este comando generará la cantidad especificada de cuentas desde el generador web.`)
         }
 
@@ -28,9 +30,59 @@ Este comando generará la cantidad especificada de cuentas desde el generador we
             return m.reply('❌ La cantidad debe ser un número entre 1 y 10.')
         }
 
-        // Mensaje de espera
-        await m.reply('🔄 Generando cuentas desde el servidor... Por favor espera...')
+        // Verificar si el usuario existe en la base de datos
+        let user = global.db.data.users[m.sender]
+        if (!user) {
+            global.db.data.users[m.sender] = {
+                exp: 0,
+                money: 0,
+                level: 0
+            }
+            user = global.db.data.users[m.sender]
+        }
 
+        // Verificar si el usuario tiene suficiente dinero
+        const costo = 2000000
+        if (user.money < costo) {
+            return m.reply(`❌ No tienes suficiente dinero para realizar el sorteo.\n\n💰 *Costo:* ${costo.toLocaleString()} monedas\n💳 *Tu dinero:* ${user.money.toLocaleString()} monedas\n\n¡Necesitas ${(costo - user.money).toLocaleString()} monedas más!`)
+        }
+
+        // Cobrar al usuario
+        user.money -= costo
+
+        // Crear función para actualizar barra de progreso
+        const crearBarraProgreso = (porcentaje) => {
+            const barLength = 20
+            const filled = Math.floor((porcentaje / 100) * barLength)
+            const empty = barLength - filled
+            const bar = '█'.repeat(filled) + '░'.repeat(empty)
+            return `[${bar}] ${porcentaje}%`
+        }
+
+        // Mostrar 5 barras de carga progresivas
+        const loadingMsg = await m.reply('🔄 Iniciando sorteo de cuentas...\n\n' + crearBarraProgreso(0))
+
+        for (let barra = 1; barra <= 5; barra++) {
+            for (let progreso = 0; progreso <= 100; progreso += 10) {
+                const mensajeCarga = `🎰 Generando sorteo... (${barra}/5)\n\n${crearBarraProgreso(progreso)}`
+                
+                try {
+                    await conn.sendMessage(m.chat, { text: mensajeCarga, edit: loadingMsg.key })
+                } catch (e) {
+                    // Si falla la edición, continuar
+                }
+                
+                // Esperar un poco para simular carga
+                await new Promise(resolve => setTimeout(resolve, 200))
+            }
+            
+            // Pausa entre barras
+            if (barra < 5) {
+                await new Promise(resolve => setTimeout(resolve, 500))
+            }
+        }
+
+        // Generar cuentas
         const cuentasGeneradas = []
 
         for (let i = 0; i < cantidad; i++) {
@@ -42,7 +94,7 @@ Este comando generará la cantidad especificada de cuentas desde el generador we
                 }
                 
                 // Esperar un poco entre generaciones para no sobrecargar
-                await new Promise(resolve => setTimeout(resolve, 2000))
+                await new Promise(resolve => setTimeout(resolve, 1000))
             } catch (error) {
                 console.log(`Error generando cuenta ${i + 1}:`, error)
             }
@@ -58,8 +110,12 @@ Este comando generará la cantidad especificada de cuentas desde el generador we
 ┃      🎁 *SORTEO DE CUENTAS* 🎁      ┃
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
 
+✅ *Sorteo completado exitosamente*
+
 📊 *Cuentas generadas:* ${cuentasGeneradas.length}
 🕐 *Fecha:* ${new Date().toLocaleString('es-ES')}
+💰 *Costo:* ${costo.toLocaleString()} monedas
+💳 *Dinero restante:* ${user.money.toLocaleString()} monedas
 
 `
 
@@ -85,13 +141,20 @@ Este comando generará la cantidad especificada de cuentas desde el generador we
 
 ╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
 ┃       ¡Sorteo completado! 🎉       ┃
-╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯`
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
+
+Power by 💖💝 Y⃟o⃟ S⃟o⃟y⃟ Y⃟o⃟ 💝 💖`
 
         // Enviar las cuentas
-        await conn.sendMessage(m.chat, { text: mensaje }, { quoted: m })
+        try {
+            await conn.sendMessage(m.chat, { text: mensaje, edit: loadingMsg.key })
+        } catch (e) {
+            // Si falla la edición, enviar mensaje nuevo
+            await conn.sendMessage(m.chat, { text: mensaje }, { quoted: m })
+        }
 
         // Log para el propietario
-        console.log(`[SORTEO REALIZADO] Generadas ${cuentasGeneradas.length} cuentas por ${m.sender}`)
+        console.log(`[SORTEO REALIZADO] Generadas ${cuentasGeneradas.length} cuentas por ${m.sender} | Pagó: ${costo}`)
 
     } catch (error) {
         console.error('Error en sorteo de cuentas:', error)

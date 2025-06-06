@@ -64,9 +64,64 @@ let handler = async (m, { conn, usedPrefix, command }) => {
             return m.reply('❌ No hay cuentas disponibles en este momento.')
         }
 
+        // Verificar si el usuario existe en la base de datos
+        let user = global.db.data.users[m.sender]
+        if (!user) {
+            global.db.data.users[m.sender] = {
+                exp: 0,
+                money: 0,
+                level: 0
+            }
+            user = global.db.data.users[m.sender]
+        }
+
+        // Verificar si el usuario tiene suficiente dinero
+        const costo = 2000000
+        if (user.money < costo) {
+            return m.reply(`❌ No tienes suficiente dinero para generar una cuenta.\n\n💰 *Costo:* ${costo.toLocaleString()} monedas\n💳 *Tu dinero:* ${user.money.toLocaleString()} monedas\n\n¡Necesitas ${(costo - user.money).toLocaleString()} monedas más!`)
+        }
+
+        // Cobrar al usuario
+        user.money -= costo
+
         // Seleccionar una cuenta aleatoria
         const randomIndex = Math.floor(Math.random() * cuentasList.length)
         const cuenta = cuentasList[randomIndex]
+
+        // Crear función para actualizar barra de progreso
+        const crearBarraProgreso = (porcentaje) => {
+            const barLength = 20
+            const filled = Math.floor((porcentaje / 100) * barLength)
+            const empty = barLength - filled
+            const bar = '█'.repeat(filled) + '░'.repeat(empty)
+            return `[${bar}] ${porcentaje}%`
+        }
+
+        // Mostrar 5 barras de carga progresivas
+        const loadingMsg = await m.reply('🔄 Generando cuenta premium...\n\n' + crearBarraProgreso(0))
+
+        for (let barra = 1; barra <= 5; barra++) {
+            for (let progreso = 0; progreso <= 100; progreso += 10) {
+                const mensajeCarga = `🔄 Procesando datos... (${barra}/5)\n\n${crearBarraProgreso(progreso)}`
+                
+                try {
+                    await conn.sendMessage(m.chat, { text: mensajeCarga, edit: loadingMsg.key })
+                } catch (e) {
+                    // Si falla la edición, continuar
+                }
+                
+                // Esperar un poco para simular carga
+                await new Promise(resolve => setTimeout(resolve, 200))
+            }
+            
+            // Pausa entre barras
+            if (barra < 5) {
+                await new Promise(resolve => setTimeout(resolve, 500))
+            }
+        }
+
+        // Mensaje final de éxito
+        await new Promise(resolve => setTimeout(resolve, 1000))
 
         // Crear el mensaje con la información de la cuenta
         const mensaje = `
@@ -74,10 +129,15 @@ let handler = async (m, { conn, usedPrefix, command }) => {
 ┃       🍥 *CRUNCHYROLL PREMIUM* 🍥       ┃
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
 
+✅ *Generación completada exitosamente*
+
 📧 *Email:* ${cuenta.email}
 🔑 *Contraseña:* ${cuenta.password}
 📋 *Plan:* ${cuenta.plan}
 📅 *Vence:* ${cuenta.expiry}
+
+💰 *Costo:* ${costo.toLocaleString()} monedas
+💳 *Dinero restante:* ${user.money.toLocaleString()} monedas
 
 ⚠️ *Importante:*
 • No cambies los datos de la cuenta
@@ -87,16 +147,23 @@ let handler = async (m, { conn, usedPrefix, command }) => {
 
 ╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
 ┃      ¡Disfruta tu anime! 🎌🍿      ┃
-╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯`
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
+
+Power by 💖💝 Y⃟o⃟ S⃟o⃟y⃟ Y⃟o⃟ 💝 💖`
 
         // Enviar la cuenta al usuario
-        await m.reply(mensaje)
+        try {
+            await conn.sendMessage(m.chat, { text: mensaje, edit: loadingMsg.key })
+        } catch (e) {
+            // Si falla la edición, enviar mensaje nuevo
+            await m.reply(mensaje)
+        }
 
         // Opcional: Remover la cuenta de la lista para evitar duplicados
         // cuentasList.splice(randomIndex, 1)
 
         // Log para el propietario
-        console.log(`[CUENTA ENVIADA] Usuario: ${m.sender} | Email: ${cuenta.email}`)
+        console.log(`[CUENTA ENVIADA] Usuario: ${m.sender} | Email: ${cuenta.email} | Pagó: ${costo}`)
 
     } catch (error) {
         console.error('Error en el comando cuentas:', error)
